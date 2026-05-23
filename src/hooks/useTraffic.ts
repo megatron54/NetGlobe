@@ -46,7 +46,13 @@ function generateMockConnection(index: number): Connection {
 
 export function useTraffic() {
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [origin, setOrigin] = useState<OriginLocation | null>(null);
+  const [origin, setOrigin] = useState<OriginLocation | null>({
+    ip: "detecting...",
+    lat: 39.4699,
+    lng: -0.3763,
+    city: "Valencia",
+    country: "ES",
+  });
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats>({
     totalConnections: 0,
@@ -151,7 +157,7 @@ export function useTraffic() {
           setConnections(allConns);
         }, 800);
       }
-    }, 3000);
+    }, 1000);
 
     return () => {
       clearTimeout(timeout);

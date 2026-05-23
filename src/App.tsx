@@ -8,6 +8,11 @@ function App() {
 
   return (
     <div className="w-screen h-screen bg-[#050810] overflow-hidden relative">
+      {/* Debug indicator */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 text-white/50 text-xs">
+        NetGlobe v0.1.0 | React loaded
+      </div>
+
       {/* 3D Globe (background) */}
       <GlobeView
         connections={connections}

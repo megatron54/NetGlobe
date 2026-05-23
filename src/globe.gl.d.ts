@@ -15,17 +15,17 @@ declare module "globe.gl" {
 
     arcsData(data: any[]): GlobeInstance;
     arcColor(fn: string | ((d: any) => string)): GlobeInstance;
-    arcStroke(width: number | ((d: any) => number)): GlobeInstance;
-    arcDashLength(len: number | ((d: any) => number)): GlobeInstance;
-    arcDashGap(gap: number | ((d: any) => number)): GlobeInstance;
-    arcDashAnimateTime(ms: number | ((d: any) => number)): GlobeInstance;
-    arcAltitudeAutoScale(scale: number | ((d: any) => number)): GlobeInstance;
+    arcStroke(width: number | string | ((d: any) => number)): GlobeInstance;
+    arcDashLength(len: number | string | ((d: any) => number)): GlobeInstance;
+    arcDashGap(gap: number | string | ((d: any) => number)): GlobeInstance;
+    arcDashAnimateTime(ms: number | string | ((d: any) => number)): GlobeInstance;
+    arcAltitudeAutoScale(scale: number | string | ((d: any) => number)): GlobeInstance;
     arcsTransitionDuration(ms: number): GlobeInstance;
 
     pointsData(data: any[]): GlobeInstance;
     pointColor(fn: string | ((d: any) => string)): GlobeInstance;
-    pointAltitude(alt: number | ((d: any) => number)): GlobeInstance;
-    pointRadius(radius: number | ((d: any) => number)): GlobeInstance;
+    pointAltitude(alt: number | string | ((d: any) => number)): GlobeInstance;
+    pointRadius(radius: number | string | ((d: any) => number)): GlobeInstance;
     pointsMerge(merge: boolean): GlobeInstance;
     pointsTransitionDuration(ms: number): GlobeInstance;
 

@@ -12,65 +12,85 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getProtocolBadgeColor(protocol: string, port: number): string {
-  if (port === 443 || port === 80) return "bg-cyan-500/20 text-cyan-400 border-cyan-500/30";
-  if (port === 53) return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-  if (protocol === "UDP") return "bg-purple-500/20 text-purple-400 border-purple-500/30";
-  return "bg-green-500/20 text-green-400 border-green-500/30";
+function getProtocolLabel(protocol: string, port: number): string {
+  if (port === 443) return "HTTPS";
+  if (port === 80) return "HTTP";
+  if (port === 53) return "DNS";
+  return `${protocol}:${port}`;
+}
+
+function getProtocolDotColor(protocol: string, port: number): string {
+  if (port === 443 || port === 80) return "bg-cyan-400";
+  if (port === 53) return "bg-amber-400";
+  if (protocol === "UDP") return "bg-purple-400";
+  return "bg-green-400";
 }
 
 export function ConnectionPanel({ connections, selected, onSelect }: ConnectionPanelProps) {
   return (
-    <div className="absolute left-0 top-0 bottom-0 w-80 z-10 flex flex-col pointer-events-auto">
+    <div className="absolute left-4 top-4 bottom-4 w-[320px] z-20 flex flex-col rounded-2xl overflow-hidden border border-white/[0.06] bg-black/40 backdrop-blur-2xl shadow-2xl shadow-black/50">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-cyan-500/20 bg-[#0a0e17]/90 backdrop-blur-xl">
-        <h1 className="text-cyan-400 text-sm font-bold tracking-wider uppercase">
-          NetGlobe
-        </h1>
-        <p className="text-gray-500 text-xs mt-0.5">
-          Live Network Traffic
+      <div className="px-5 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2.5">
+          <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(79,195,247,0.8)]" />
+          <h1 className="text-white text-sm font-semibold tracking-wide">
+            NetGlobe
+          </h1>
+        </div>
+        <p className="text-white/40 text-[11px] mt-1 ml-[18px]">
+          Real-time network traffic
         </p>
       </div>
 
       {/* Connection List */}
-      <div className="flex-1 overflow-y-auto bg-[#0a0e17]/80 backdrop-blur-xl border-r border-cyan-500/10 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto">
         {connections.length === 0 ? (
-          <div className="p-4 text-gray-600 text-xs text-center">
+          <div className="p-6 text-white/30 text-xs text-center">
+            <div className="w-8 h-8 mx-auto mb-3 rounded-full border border-white/10 flex items-center justify-center">
+              <div className="w-2 h-2 rounded-full bg-cyan-400/50 animate-pulse" />
+            </div>
             Waiting for connections...
           </div>
         ) : (
-          connections.map((conn) => (
-            <div
-              key={conn.id}
-              onClick={() => onSelect(conn.id === selected ? null : conn.id)}
-              className={`px-3 py-2 border-b border-white/5 cursor-pointer transition-colors hover:bg-cyan-500/5 ${
-                conn.id === selected ? "bg-cyan-500/10 border-l-2 border-l-cyan-400" : ""
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300 text-xs font-mono truncate max-w-[140px]">
-                  {conn.dst_ip}
-                </span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded border ${getProtocolBadgeColor(
-                    conn.protocol,
-                    conn.port
-                  )}`}
-                >
-                  {conn.port === 443 ? "HTTPS" : conn.port === 80 ? "HTTP" : conn.port === 53 ? "DNS" : `${conn.protocol}:${conn.port}`}
-                </span>
+          <div className="py-1">
+            {connections.map((conn) => (
+              <div
+                key={conn.id}
+                onClick={() => onSelect(conn.id === selected ? null : conn.id)}
+                className={`px-4 py-2.5 cursor-pointer transition-all duration-150 border-l-2 ${
+                  conn.id === selected
+                    ? "bg-white/[0.06] border-l-cyan-400"
+                    : "border-l-transparent hover:bg-white/[0.03]"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${getProtocolDotColor(conn.protocol, conn.port)}`} />
+                    <span className="text-white/80 text-[11px] font-mono">
+                      {conn.dst_ip}
+                    </span>
+                  </div>
+                  <span className="text-white/40 text-[10px] font-mono">
+                    {getProtocolLabel(conn.protocol, conn.port)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-1 ml-[14px]">
+                  <span className="text-white/30 text-[10px]">
+                    {conn.location.city !== "Unknown" ? `${conn.location.city}, ` : ""}{conn.location.country}
+                  </span>
+                  <span className="text-white/30 text-[10px] font-mono">
+                    {formatBytes(conn.bytes)}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-gray-500 text-[10px] truncate">
-                  {conn.location.city}, {conn.location.country}
-                </span>
-                <span className="text-gray-500 text-[10px]">
-                  {formatBytes(conn.bytes)}
-                </span>
-              </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-white/[0.06] text-[10px] text-white/20 text-center">
+        {connections.length} connections tracked
       </div>
     </div>
   );

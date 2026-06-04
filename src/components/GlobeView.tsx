@@ -15,67 +15,71 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
   const globeRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
 
-  // Initialize globe with delayed mount to ensure container is sized
+  // Initialize globe
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    // Wait for next frame so layout is computed
+    // Double rAF to guarantee layout is computed
     const raf = requestAnimationFrame(() => {
-      const w = el.clientWidth || window.innerWidth;
-      const h = el.clientHeight || window.innerHeight;
+      requestAnimationFrame(() => {
+        const w = el.clientWidth || window.innerWidth;
+        const h = el.clientHeight || window.innerHeight;
 
-      const globe = Globe()(el)
-        .width(w)
-        .height(h)
-        .globeImageUrl(`${BASE}earth-night-hq.jpg`)
-        .bumpImageUrl(`${BASE}earth-topology.png`)
-        .backgroundImageUrl(`${BASE}night-sky.png`)
-        .showAtmosphere(true)
-        .atmosphereColor('#1e88e5')
-        .atmosphereAltitude(0.18)
-        .animateIn(true)
-        // Arcs
-        .arcColor('color')
-        .arcStroke(0.6)
-        .arcDashLength(0.6)
-        .arcDashGap(0.3)
-        .arcDashAnimateTime(2000)
-        .arcAltitudeAutoScale(0.35)
-        .arcsTransitionDuration(300)
-        // Points
-        .pointColor('color')
-        .pointAltitude(0.008)
-        .pointRadius('size')
-        .pointsMerge(false)
-        .pointsTransitionDuration(300)
-        // Rings
-        .ringColor(() => (t: number) => `rgba(30, 136, 229, ${1 - t})`)
-        .ringMaxRadius(2.5)
-        .ringPropagationSpeed(1.5)
-        .ringRepeatPeriod(2000);
+        const globe = Globe()(el)
+          .width(w)
+          .height(h)
+          .globeImageUrl(`${BASE}earth-night-hq.jpg`)
+          .bumpImageUrl(`${BASE}earth-topology.png`)
+          .backgroundImageUrl(`${BASE}night-sky.png`)
+          .showAtmosphere(true)
+          .atmosphereColor('#1e88e5')
+          .atmosphereAltitude(0.2)
+          .animateIn(false)
+          // Arcs — thick and bright
+          .arcColor((d: any) => d.color)
+          .arcStroke((d: any) => d.stroke)
+          .arcDashLength(0.9)
+          .arcDashGap(0.4)
+          .arcDashAnimateTime((d: any) => d.animTime)
+          .arcAltitudeAutoScale(0.4)
+          .arcsTransitionDuration(200)
+          // Points
+          .pointColor((d: any) => d.color)
+          .pointAltitude(0.01)
+          .pointRadius((d: any) => d.size)
+          .pointsMerge(false)
+          .pointsTransitionDuration(200)
+          // Rings (origin pulse)
+          .ringColor(() => (t: number) => `rgba(56, 189, 248, ${1 - t})`)
+          .ringMaxRadius(3)
+          .ringPropagationSpeed(2)
+          .ringRepeatPeriod(1500);
 
-      // Camera
-      globe.pointOfView({ lat: 30, lng: 10, altitude: 2.4 });
+        // Camera position — show Europe/Africa in view with Valencia visible
+        globe.pointOfView({ lat: 25, lng: 10, altitude: 2.2 });
 
-      const controls = globe.controls() as any;
-      if (controls) {
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.08;
-        controls.rotateSpeed = 0.4;
-        controls.zoomSpeed = 0.7;
-        controls.minDistance = 150;
-        controls.maxDistance = 600;
-      }
+        const controls = globe.controls() as any;
+        if (controls) {
+          controls.enableDamping = true;
+          controls.dampingFactor = 0.1;
+          controls.rotateSpeed = 0.5;
+          controls.zoomSpeed = 0.8;
+          controls.minDistance = 140;
+          controls.maxDistance = 550;
+          controls.autoRotate = true;
+          controls.autoRotateSpeed = 0.3;
+        }
 
-      globeRef.current = globe;
-      setReady(true);
+        globeRef.current = globe;
+        setReady(true);
+      });
     });
 
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Resize
+  // Resize handler
   useEffect(() => {
     const onResize = () => {
       if (containerRef.current && globeRef.current) {
@@ -88,51 +92,43 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Pan to origin
-  useEffect(() => {
-    if (!ready || !globeRef.current || !origin) return;
-    globeRef.current.pointOfView(
-      { lat: origin.lat, lng: origin.lng, altitude: 2.2 },
-      1800,
-    );
-  }, [origin, ready]);
-
-  // Arcs
+  // Update arcs
   useEffect(() => {
     if (!ready || !globeRef.current || !origin) return;
 
     const arcs = connections
       .filter((c) => c.location.lat !== 0 || c.location.lng !== 0)
-      .slice(0, 100)
       .map((conn) => ({
         startLat: origin.lat,
         startLng: origin.lng,
         endLat: conn.location.lat,
         endLng: conn.location.lng,
         color: getProtocolColor(conn.protocol, conn.port),
+        stroke: 0.4 + Math.min(conn.bytes / 100000, 1.8),
+        animTime: 1200 + Math.random() * 1500,
       }));
 
     globeRef.current.arcsData(arcs);
   }, [connections, origin, ready]);
 
-  // Points
+  // Update points
   useEffect(() => {
     if (!ready || !globeRef.current || !origin) return;
 
     const points: any[] = [
-      { lat: origin.lat, lng: origin.lng, color: '#ffffff', size: 0.7 },
+      { lat: origin.lat, lng: origin.lng, color: '#ffffff', size: 0.8 },
     ];
 
     const seen = new Set<string>();
     for (const conn of connections) {
       const key = `${conn.location.lat.toFixed(1)},${conn.location.lng.toFixed(1)}`;
-      if (seen.has(key) || (conn.location.lat === 0 && conn.location.lng === 0)) continue;
+      if (seen.has(key)) continue;
       seen.add(key);
       points.push({
         lat: conn.location.lat,
         lng: conn.location.lng,
         color: getProtocolHex(conn.protocol, conn.port),
-        size: 0.35,
+        size: 0.4,
       });
     }
 

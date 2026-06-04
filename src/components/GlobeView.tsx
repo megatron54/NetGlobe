@@ -3,6 +3,8 @@ import Globe from 'globe.gl';
 import type { Connection, OriginLocation } from '../types';
 import { getProtocolColor, getProtocolHex } from '../lib/protocol';
 
+const BASE = import.meta.env.BASE_URL;
+
 interface GlobeViewProps {
   connections: Connection[];
   origin: OriginLocation | null;
@@ -13,22 +15,27 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
   const globeRef = useRef<ReturnType<typeof Globe> | null>(null);
   const initRef = useRef(false);
 
-  // Initialize globe
+  // Initialize globe once container is mounted and sized
   useEffect(() => {
     if (!containerRef.current || initRef.current) return;
-    initRef.current = true;
 
     const el = containerRef.current;
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+    if (w === 0 || h === 0) return;
+
+    initRef.current = true;
+
     const globe = Globe()(el)
-      .globeImageUrl('/earth-night-hq.jpg')
-      .bumpImageUrl('/earth-topology.png')
-      .backgroundImageUrl('/night-sky.png')
+      .globeImageUrl(`${BASE}earth-night-hq.jpg`)
+      .bumpImageUrl(`${BASE}earth-topology.png`)
+      .backgroundImageUrl(`${BASE}night-sky.png`)
       .showAtmosphere(true)
       .atmosphereColor('#1e88e5')
       .atmosphereAltitude(0.18)
       .animateIn(true)
-      .width(el.clientWidth)
-      .height(el.clientHeight)
+      .width(w)
+      .height(h)
       // Arc config
       .arcColor('color')
       .arcStroke(0.6)
@@ -49,7 +56,7 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
       .ringPropagationSpeed(1.5)
       .ringRepeatPeriod(2000);
 
-    // Camera defaults
+    // Camera
     globe.pointOfView({ lat: 30, lng: 10, altitude: 2.4 });
 
     const controls = globe.controls() as any;
@@ -63,24 +70,22 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
     }
 
     globeRef.current = globe;
-
-    return () => { initRef.current = false; };
   }, []);
 
-  // Resize handler
+  // Resize
   useEffect(() => {
-    const handleResize = () => {
+    const onResize = () => {
       if (containerRef.current && globeRef.current) {
         globeRef.current
           .width(containerRef.current.clientWidth)
           .height(containerRef.current.clientHeight);
       }
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Pan to origin when it arrives
+  // Pan to origin
   useEffect(() => {
     if (!globeRef.current || !origin) return;
     globeRef.current.pointOfView(
@@ -89,11 +94,11 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
     );
   }, [origin]);
 
-  // Update arcs
+  // Arcs
   useEffect(() => {
     if (!globeRef.current || !origin) return;
 
-    const arcsData = connections
+    const arcs = connections
       .filter((c) => c.location.lat !== 0 || c.location.lng !== 0)
       .slice(0, 100)
       .map((conn) => ({
@@ -104,10 +109,10 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
         color: getProtocolColor(conn.protocol, conn.port),
       }));
 
-    globeRef.current.arcsData(arcsData);
+    globeRef.current.arcsData(arcs);
   }, [connections, origin]);
 
-  // Update points
+  // Points
   useEffect(() => {
     if (!globeRef.current || !origin) return;
 
@@ -131,7 +136,7 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
     globeRef.current.pointsData(points);
   }, [connections, origin]);
 
-  // Update origin ring
+  // Origin ring
   useEffect(() => {
     if (!globeRef.current || !origin) return;
     globeRef.current.ringsData([{ lat: origin.lat, lng: origin.lng }]);
@@ -140,7 +145,7 @@ export default function GlobeView({ connections, origin }: GlobeViewProps) {
   return (
     <div
       ref={containerRef}
-      className="absolute inset-0 w-full h-full"
+      className="absolute inset-0 z-0"
       style={{ background: '#040810' }}
     />
   );

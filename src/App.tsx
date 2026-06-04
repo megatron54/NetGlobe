@@ -8,12 +8,20 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen bg-[#040810] overflow-hidden relative">
-      {/* 3D Globe */}
-      <GlobeView connections={connections} origin={origin} />
+      {/* Globe layer (background) */}
+      <div className="absolute inset-0 z-0">
+        <GlobeView connections={connections} origin={origin} />
+      </div>
 
-      {/* UI Overlays */}
-      <ConnectionList connections={connections} />
-      <StatsPanel stats={stats} origin={origin} />
+      {/* UI layer (foreground) */}
+      <div className="absolute inset-0 z-10 pointer-events-none">
+        <div className="pointer-events-auto">
+          <ConnectionList connections={connections} />
+        </div>
+        <div className="pointer-events-auto">
+          <StatsPanel stats={stats} origin={origin} />
+        </div>
+      </div>
     </div>
   );
 }

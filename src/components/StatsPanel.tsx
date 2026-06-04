@@ -4,10 +4,9 @@ import { formatBytes } from '../lib/protocol';
 interface StatsPanelProps {
   stats: TrafficStats;
   origin: OriginLocation | null;
-  captureActive: boolean;
 }
 
-export default function StatsPanel({ stats, origin, captureActive }: StatsPanelProps) {
+export default function StatsPanel({ stats, origin }: StatsPanelProps) {
   return (
     <div className="absolute top-4 right-4 z-20 w-[240px]">
       <div className="rounded-xl border border-white/[0.07] bg-[#0a0e18]/80 backdrop-blur-xl overflow-hidden">
@@ -22,12 +21,10 @@ export default function StatsPanel({ stats, origin, captureActive }: StatsPanelP
           </div>
         )}
 
-        {/* Status indicator */}
+        {/* Status */}
         <div className="px-5 py-2.5 border-b border-white/[0.05] flex items-center gap-2">
-          <div className={`w-1.5 h-1.5 rounded-full ${captureActive ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
-          <span className="text-[10px] text-white/40">
-            {captureActive ? 'Capturing live traffic' : 'Demo mode'}
-          </span>
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] text-white/40">Live simulation</span>
         </div>
 
         {/* Metrics */}

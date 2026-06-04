@@ -1,14 +1,23 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/core';
+import { useState, useEffect, useRef } from 'react';
 import type { Connection, OriginLocation, TrafficStats } from '../types';
 
-const CONNECTION_TTL_SECONDS = 30;
 const STATS_INTERVAL_MS = 1000;
+const TICK_INTERVAL_MS = 500;
+const MAX_CONNECTIONS = 30;
 
+/**
+ * Simulates realistic network traffic patterns for visualization.
+ * Connections appear gradually, update their byte/packet counts, and expire.
+ */
 export function useTraffic() {
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [origin, setOrigin] = useState<OriginLocation | null>(null);
+  const [origin] = useState<OriginLocation>({
+    ip: '83.45.128.72',
+    lat: 39.47,
+    lng: -0.38,
+    city: 'Valencia',
+    country: 'Spain',
+  });
   const [stats, setStats] = useState<TrafficStats>({
     totalConnections: 0,
     activeConnections: 0,
@@ -17,51 +26,55 @@ export function useTraffic() {
     topCountries: [],
     topProtocols: [],
   });
-  const [captureActive, setCaptureActive] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const connectionMap = useRef<Map<string, Connection>>(new Map());
+  const tickRef = useRef(0);
   const ppsAccumulator = useRef(0);
 
-  // Resolve origin IP on mount
+  // Simulation loop: add new connections, update existing ones, expire old ones
   useEffect(() => {
-    invoke<OriginLocation>('get_origin_location')
-      .then((loc) => {
-        setOrigin(loc);
-      })
-      .catch((e) => {
-        console.warn('Origin resolution failed:', e);
-        setOrigin({ ip: '0.0.0.0', lat: 40.42, lng: -3.70, city: 'Unknown', country: '--' });
-      });
-  }, []);
-
-  // Subscribe to Rust backend events
-  useEffect(() => {
-    const unlistenConnections = listen<Connection[]>('connections', (event) => {
-      setCaptureActive(true);
-      const batch = event.payload;
+    const interval = setInterval(() => {
       const map = connectionMap.current;
+      const now = Math.floor(Date.now() / 1000);
+      tickRef.current++;
 
-      for (const conn of batch) {
-        map.set(conn.id, conn);
-        ppsAccumulator.current += conn.packets;
+      // Add 1-2 new connections every few ticks
+      if (tickRef.current % 2 === 0 && map.size < MAX_CONNECTIONS) {
+        const count = Math.random() > 0.6 ? 2 : 1;
+        for (let i = 0; i < count; i++) {
+          const conn = generateConnection(now);
+          map.set(conn.id, conn);
+        }
       }
 
-      pruneStale(map);
-      setConnections(Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp));
-    });
+      // Update existing connections (simulate ongoing traffic)
+      for (const [, conn] of map) {
+        if (Math.random() > 0.4) {
+          const byteDelta = Math.floor(Math.random() * 12000) + 500;
+          const packetDelta = Math.floor(Math.random() * 20) + 1;
+          conn.bytes += byteDelta;
+          conn.packets += packetDelta;
+          conn.timestamp = now;
+          ppsAccumulator.current += packetDelta;
+        }
+      }
 
-    const unlistenError = listen<string>('capture-error', (event) => {
-      setError(event.payload);
-    });
+      // Expire old connections
+      for (const [key, conn] of map) {
+        if (now - conn.timestamp > 15 + Math.random() * 10) {
+          map.delete(key);
+        }
+      }
 
-    return () => {
-      unlistenConnections.then((fn) => fn());
-      unlistenError.then((fn) => fn());
-    };
+      setConnections(
+        Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp),
+      );
+    }, TICK_INTERVAL_MS);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // Compute stats on interval
+  // Stats computation
   useEffect(() => {
     const interval = setInterval(() => {
       const all = Array.from(connectionMap.current.values());
@@ -100,57 +113,12 @@ export function useTraffic() {
     return () => clearInterval(interval);
   }, []);
 
-  // Mock data fallback for development / when capture fails
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (!captureActive && connectionMap.current.size === 0) {
-        startMockFeed();
-      }
-    }, 2000);
-
-    return () => clearTimeout(timeout);
-  }, [captureActive]);
-
-  const startMockFeed = useCallback(() => {
-    let idx = 0;
-    const interval = setInterval(() => {
-      const conn = generateMock(idx++);
-      const map = connectionMap.current;
-      map.set(conn.id, conn);
-
-      // Simulate activity on existing connections
-      const now = Math.floor(Date.now() / 1000);
-      for (const [, c] of map) {
-        if (Math.random() > 0.6) {
-          c.bytes += Math.floor(Math.random() * 8000) + 500;
-          c.packets += Math.floor(Math.random() * 15) + 1;
-          c.timestamp = now;
-        }
-      }
-
-      pruneStale(map);
-      ppsAccumulator.current += Math.floor(Math.random() * 60) + 20;
-      setConnections(Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp));
-    }, 600);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return { connections, origin, stats, captureActive, error };
+  return { connections, origin, stats };
 }
 
-function pruneStale(map: Map<string, Connection>) {
-  const now = Math.floor(Date.now() / 1000);
-  for (const [key, conn] of map) {
-    if (now - conn.timestamp > CONNECTION_TTL_SECONDS) {
-      map.delete(key);
-    }
-  }
-}
+// --- Destination pool ---
 
-// --- Mock data for dev/demo ---
-
-const MOCK_DESTINATIONS = [
+const DESTINATIONS = [
   { ip: '142.250.185.14', lat: 37.41, lng: -122.08, country: 'United States', city: 'Mountain View', port: 443, protocol: 'TCP' },
   { ip: '104.244.42.65', lat: 37.77, lng: -122.42, country: 'United States', city: 'San Francisco', port: 443, protocol: 'TCP' },
   { ip: '52.84.225.100', lat: 47.61, lng: -122.33, country: 'United States', city: 'Seattle', port: 443, protocol: 'TCP' },
@@ -171,18 +139,25 @@ const MOCK_DESTINATIONS = [
   { ip: '5.135.0.1', lat: 48.86, lng: 2.35, country: 'France', city: 'Paris', port: 443, protocol: 'TCP' },
   { ip: '94.130.110.1', lat: 49.45, lng: 11.08, country: 'Germany', city: 'Nuremberg', port: 3478, protocol: 'UDP' },
   { ip: '45.33.32.156', lat: 40.83, lng: -74.13, country: 'United States', city: 'Newark', port: 80, protocol: 'TCP' },
+  { ip: '176.34.135.167', lat: 53.35, lng: -6.26, country: 'Ireland', city: 'Dublin', port: 443, protocol: 'TCP' },
+  { ip: '54.239.28.85', lat: 1.28, lng: 103.85, country: 'Singapore', city: 'Singapore', port: 443, protocol: 'TCP' },
+  { ip: '23.215.0.138', lat: 59.33, lng: 18.07, country: 'Sweden', city: 'Stockholm', port: 443, protocol: 'TCP' },
+  { ip: '162.125.66.1', lat: 37.39, lng: -122.08, country: 'United States', city: 'San Jose', port: 443, protocol: 'TCP' },
 ];
 
-function generateMock(index: number): Connection {
-  const dest = MOCK_DESTINATIONS[index % MOCK_DESTINATIONS.length]!;
+let connCounter = 0;
+
+function generateConnection(timestamp: number): Connection {
+  const dest = DESTINATIONS[connCounter % DESTINATIONS.length]!;
+  connCounter++;
   return {
-    id: `${dest.ip}:${dest.protocol}:${dest.port}`,
+    id: `${dest.ip}:${dest.protocol}:${dest.port}-${connCounter}`,
     dst_ip: dest.ip,
     protocol: dest.protocol,
     port: dest.port,
     location: { lat: dest.lat, lng: dest.lng, country: dest.country, city: dest.city },
-    bytes: Math.floor(Math.random() * 60000) + 2000,
-    packets: Math.floor(Math.random() * 120) + 10,
-    timestamp: Math.floor(Date.now() / 1000),
+    bytes: Math.floor(Math.random() * 30000) + 2000,
+    packets: Math.floor(Math.random() * 80) + 5,
+    timestamp,
   };
 }

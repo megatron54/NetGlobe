@@ -8,7 +8,7 @@ interface StatsPanelProps {
 
 export default function StatsPanel({ stats, origin }: StatsPanelProps) {
   return (
-    <div className="absolute top-4 right-4 z-20 w-[240px]">
+    <div className="absolute top-4 right-4 w-[240px]" style={{ zIndex: 50 }}>
       <div className="rounded-xl border border-white/[0.07] bg-[#0a0e18]/80 backdrop-blur-xl overflow-hidden">
         {/* Origin */}
         {origin && (

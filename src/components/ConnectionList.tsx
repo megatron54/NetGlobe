@@ -7,7 +7,7 @@ interface ConnectionListProps {
 
 export default function ConnectionList({ connections }: ConnectionListProps) {
   return (
-    <div className="absolute left-4 top-4 bottom-4 w-[340px] z-20 flex flex-col rounded-xl overflow-hidden border border-white/[0.07] bg-[#0a0e18]/80 backdrop-blur-xl">
+    <div className="absolute left-4 top-4 bottom-4 w-[340px] flex flex-col rounded-xl overflow-hidden border border-white/[0.07] bg-[#0a0e18]/80 backdrop-blur-xl" style={{ zIndex: 50 }}>
       {/* Header */}
       <div className="px-5 pt-5 pb-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">

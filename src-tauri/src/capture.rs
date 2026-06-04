@@ -15,43 +15,41 @@ pub struct RawConnection {
     pub bytes: u64,
 }
 
-pub fn start_capture(tx: mpsc::Sender<RawConnection>) -> Result<(), String> {
-    let devices = pcap::Device::list().map_err(|e| format!("Failed to list devices: {}", e))?;
-
-    let device = devices
+/// Opens the first suitable network interface and begins capturing IP packets.
+/// Parsed connections are sent to `tx`. Runs in a background thread.
+pub fn start(tx: mpsc::Sender<RawConnection>) -> Result<(), String> {
+    let device = pcap::Device::list()
+        .map_err(|e| format!("Failed to enumerate network devices: {}", e))?
         .into_iter()
         .find(|d| {
             d.flags.connection_status == pcap::ConnectionStatus::Connected
                 && !d.flags.is_loopback()
                 && d.addresses.iter().any(|a| matches!(a.addr, IpAddr::V4(_)))
         })
-        .ok_or_else(|| "No suitable network device found".to_string())?;
+        .ok_or_else(|| "No suitable network interface found. Is Npcap installed?".to_string())?;
 
     let mut cap = pcap::Capture::from_device(device)
-        .map_err(|e| format!("Failed to open device: {}", e))?
+        .map_err(|e| format!("Failed to open capture device: {}", e))?
         .promisc(false)
         .snaplen(128)
         .timeout(100)
         .open()
-        .map_err(|e| format!("Failed to start capture: {}", e))?;
+        .map_err(|e| format!("Failed to activate capture: {}", e))?;
 
-    // Only capture IP traffic
     cap.filter("ip", true)
-        .map_err(|e| format!("Failed to set filter: {}", e))?;
+        .map_err(|e| format!("Failed to apply BPF filter: {}", e))?;
 
-    std::thread::spawn(move || {
-        loop {
-            match cap.next_packet() {
-                Ok(packet) => {
-                    if let Some(conn) = parse_packet(packet.data) {
-                        if is_public_ip(&conn.dst_ip) {
-                            let _ = tx.send(conn);
-                        }
+    std::thread::spawn(move || loop {
+        match cap.next_packet() {
+            Ok(packet) => {
+                if let Some(conn) = parse_packet(packet.data) {
+                    if is_public_ip(&conn.dst_ip) {
+                        let _ = tx.send(conn);
                     }
                 }
-                Err(pcap::Error::TimeoutExpired) => continue,
-                Err(_) => break,
             }
+            Err(pcap::Error::TimeoutExpired) => continue,
+            Err(_) => break,
         }
     });
 
@@ -60,7 +58,6 @@ pub fn start_capture(tx: mpsc::Sender<RawConnection>) -> Result<(), String> {
 
 fn parse_packet(data: &[u8]) -> Option<RawConnection> {
     let ethernet = EthernetPacket::new(data)?;
-
     if ethernet.get_ethertype() != EtherTypes::Ipv4 {
         return None;
     }
@@ -91,14 +88,13 @@ fn parse_packet(data: &[u8]) -> Option<RawConnection> {
 
 fn is_public_ip(ip: &IpAddr) -> bool {
     match ip {
-        IpAddr::V4(ipv4) => {
-            !ipv4.is_private()
-                && !ipv4.is_loopback()
-                && !ipv4.is_link_local()
-                && !ipv4.is_broadcast()
-                && !ipv4.is_unspecified()
-                && !ipv4.octets().starts_with(&[169, 254])
+        IpAddr::V4(v4) => {
+            !v4.is_private()
+                && !v4.is_loopback()
+                && !v4.is_link_local()
+                && !v4.is_broadcast()
+                && !v4.is_unspecified()
         }
-        IpAddr::V6(_) => false, // Skip IPv6 for now
+        IpAddr::V6(_) => false,
     }
 }

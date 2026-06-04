@@ -2,14 +2,13 @@ mod aggregator;
 mod capture;
 mod geoip;
 
-use aggregator::Aggregator;
 use geoip::GeoIpResolver;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
 
 #[derive(Debug, Serialize, Deserialize)]
-struct IpInfo {
+struct IpInfoResponse {
     ip: String,
     loc: Option<String>,
     city: Option<String>,
@@ -27,12 +26,12 @@ pub struct OriginLocation {
 
 #[tauri::command]
 async fn get_origin_location() -> Result<OriginLocation, String> {
-    let resp: IpInfo = reqwest::get("https://ipinfo.io/json")
+    let resp: IpInfoResponse = reqwest::get("https://ipinfo.io/json")
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("Network request failed: {}", e))?
         .json()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     let (lat, lng) = resp
         .loc
@@ -54,8 +53,8 @@ async fn get_origin_location() -> Result<OriginLocation, String> {
         ip: resp.ip,
         lat,
         lng,
-        city: resp.city.unwrap_or_else(|| "Unknown".to_string()),
-        country: resp.country.unwrap_or_else(|| "Unknown".to_string()),
+        city: resp.city.unwrap_or_else(|| "Unknown".into()),
+        country: resp.country.unwrap_or_else(|| "--".into()),
     })
 }
 
@@ -67,33 +66,35 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
-            // Load GeoIP database from resources
             let resource_path = app
                 .path()
                 .resource_dir()
-                .expect("failed to get resource dir")
+                .expect("failed to resolve resource directory")
                 .join("resources")
                 .join("GeoLite2-City.mmdb");
 
             let geoip_path = resource_path.to_string_lossy().to_string();
 
-            // Start capture in background
+            // Background capture thread
             std::thread::spawn(move || {
-                match GeoIpResolver::new(&geoip_path) {
-                    Ok(resolver) => {
-                        let geoip = Arc::new(resolver);
-                        let aggregator = Aggregator::new();
-                        aggregator.start(app_handle, geoip);
-                    }
+                let resolver = match GeoIpResolver::new(&geoip_path) {
+                    Ok(r) => Arc::new(r),
                     Err(e) => {
-                        eprintln!("GeoIP init failed: {}", e);
-                        let _ = app_handle.emit("capture-error", format!("GeoIP failed: {}", e));
+                        let _ = app_handle.emit(
+                            "capture-error",
+                            format!("GeoIP database not found: {}", e),
+                        );
+                        return;
                     }
+                };
+
+                if let Err(e) = aggregator::run(app_handle.clone(), resolver) {
+                    let _ = app_handle.emit("capture-error", e);
                 }
             });
 
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("failed to launch application");
 }

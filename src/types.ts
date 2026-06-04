@@ -24,10 +24,13 @@ export interface OriginLocation {
   country: string;
 }
 
-export interface Stats {
+export interface TrafficStats {
   totalConnections: number;
   activeConnections: number;
   totalBytes: number;
   packetsPerSecond: number;
   topCountries: { country: string; count: number }[];
+  topProtocols: { protocol: string; count: number }[];
 }
+
+export type ProtocolType = 'https' | 'http' | 'dns' | 'udp' | 'tcp' | 'other';

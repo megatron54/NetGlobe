@@ -1,37 +1,26 @@
-import { GlobeView } from "./components/GlobeView";
-import { ConnectionPanel } from "./components/ConnectionPanel";
-import { StatsOverlay } from "./components/StatsOverlay";
-import { useTraffic } from "./hooks/useTraffic";
+import GlobeView from './components/GlobeView';
+import ConnectionList from './components/ConnectionList';
+import StatsPanel from './components/StatsPanel';
+import { useTraffic } from './hooks/useTraffic';
 
-function App() {
-  const { connections, origin, stats, selectedConnection, setSelectedConnection } = useTraffic();
+export default function App() {
+  const { connections, origin, stats, captureActive, error } = useTraffic();
 
   return (
-    <div className="w-screen h-screen bg-[#050810] overflow-hidden relative">
-      {/* Debug indicator */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 text-white/50 text-xs">
-        NetGlobe v0.1.0 | React loaded
-      </div>
+    <div className="w-screen h-screen bg-[#040810] overflow-hidden relative">
+      {/* 3D Globe */}
+      <GlobeView connections={connections} origin={origin} />
 
-      {/* 3D Globe (background) */}
-      <GlobeView
-        connections={connections}
-        origin={origin}
-        selectedConnection={selectedConnection}
-        onSelectConnection={setSelectedConnection}
-      />
+      {/* UI Overlays */}
+      <ConnectionList connections={connections} />
+      <StatsPanel stats={stats} origin={origin} captureActive={captureActive} />
 
-      {/* Left Sidebar */}
-      <ConnectionPanel
-        connections={connections}
-        selected={selectedConnection}
-        onSelect={setSelectedConnection}
-      />
-
-      {/* Stats HUD */}
-      <StatsOverlay stats={stats} origin={origin} />
+      {/* Error banner */}
+      {error && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 backdrop-blur-sm">
+          <span className="text-red-400 text-xs">{error}</span>
+        </div>
+      )}
     </div>
   );
 }
-
-export default App;
